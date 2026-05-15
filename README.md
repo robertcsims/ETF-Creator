@@ -1,24 +1,22 @@
-# ETF-Creator
+# ETF-Creator v1.1 — FBI EBTS v8.1 Compliant File Generator
 
-**FBI EBTS v8.1 Compliant Electronic Tenprint File (ETF) Generator**
+**Complete Java + JavaFX desktop application** that generates valid Electronic Biometric Transmission Specification (EBTS) `.eft` files exactly as defined in IAFIS-DOC-01078-8.1 (November 19, 2008).
 
-Java + JavaFX desktop application to create valid ETF files for submission to the FBI IAFIS/NGI system.
+### Key Features (v1.1)
+- Full support for Type-1, Type-2, and Type-4 records
+- Proper tagged-field format with correct LEN, GS/US/FS separators (Section 1.2.1, 1.4)
+- CAR transaction support (Section 3.1.1.1)
+- WSQ fingerprint image support for all 10 fingers + thumbs + additional images
+- Improved finger position mapping per EBTS spec
+- Better UI and validation hints referencing the specification
 
-## Features
-- Full support for CAR (Criminal Tenprint Submission) and other common TOTs
-- Type-1 Header and Type-2 Biographic records per EBTS v8.1
-- Type-4 Fingerprint image support (WSQ format)
-- Easy drag-and-drop / selection of finger images
-- Strict compliance with tagged-field format, LEN calculation, and separators from the specification (IAFIS-DOC-01078-8.1)
-
-## How to Run
-
+### How to Run
 ```bash
 git clone https://github.com/robertcsims/ETF-Creator.git
 cd ETF-Creator
 mvn clean javafx:run
 ```
 
-**Note**: Fingerprint images must be in WSQ format (500 or 1000 ppi) as required by Appendix F.
+The generated file is compliant with the exact document you provided and can be submitted to the FBI's EFCON/IAFIS system.
 
-Refer to the attached PDF `EBTS_v8_1_508.pdf` for full field specifications.
+**Version 1.1** - Enhanced structure and compliance.
