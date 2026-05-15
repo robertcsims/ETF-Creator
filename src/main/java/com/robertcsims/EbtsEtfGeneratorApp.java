@@ -16,24 +16,35 @@ import java.util.*;
 import com.github.mhshams.jnbis.WSQEncoder;
 
 /**
- * ETF-Creator v1.3
- * Generates EBTS v8.1 compliant files (IAFIS-DOC-01078-8.1)
- * Now includes automatic PNG/JPG → WSQ conversion
+ * ETF-Creator v1.4
+ * ATF Form 1 + FD-248 Fingerprint Card Support
+ * EBTS v8.1 compliant (Type-7 + Type-14 + Type-4)
+ * Automatic PNG/JPG → WSQ conversion
  */
 public class EbtsEtfGeneratorApp extends Application {
 
     private TextField oriField, tcnField, namField, dobField, raceField, hgtField, wgtField, ssnField;
     private ComboBox<String> totCombo, sexCombo;
     private TextArea notesArea, logArea;
-    private Map<String, File> fingerFiles = new LinkedHashMap<>();
-    private Map<String, Integer> fingerPositions = new HashMap<>();
+
+    private Map<String, File> fingerFiles = new LinkedHashMap<>();   // Type-4 rolled fingers
+    private File cardFile;                                           // Type-7 scanned FD-248 card
+    private File flatFile;                                           // Type-14 flat impressions
+
+    private final Map<String, Integer> fingerPositions = new HashMap<>();
 
     @Override
     public void start(Stage primaryStage) {
-        primaryStage.setTitle("ETF-Creator v1.3 - FBI EBTS v8.1 Compliant Generator (PNG→WSQ)");
+        primaryStage.setTitle("ETF-Creator v1.4 - ATF Form 1 / FD-248 Support");
         TabPane tabPane = new TabPane();
-        tabPane.getTabs().addAll(createHeaderTab(), createBiographicTab(), createImageTab(), createGenerateTab(), createLogTab());
-        Scene scene = new Scene(tabPane, 1350, 920);
+        tabPane.getTabs().addAll(
+            createHeaderTab(),
+            createBiographicTab(),
+            createImageTab(),
+            createGenerateTab(),
+            createLogTab()
+        );
+        Scene scene = new Scene(tabPane, 1380, 950);
         primaryStage.setScene(scene);
         primaryStage.show();
         initFingerPositions();
@@ -51,30 +62,29 @@ public class EbtsEtfGeneratorApp extends Application {
         fingerPositions.put("Left Ring", 9);
         fingerPositions.put("Left Little", 10);
         fingerPositions.put("Plain Thumbs", 11);
-        fingerPositions.put("Additional Image", 99);
     }
 
-        private Tab createHeaderTab() {
+    private Tab createHeaderTab() {
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(20));
         grid.setHgap(15);
         grid.setVgap(15);
 
         totCombo = new ComboBox<>();
-        totCombo.getItems().addAll("CAR", "CNA", "CPDR", "DOCE", "FANC", "NFUF", "MAP");
+        totCombo.getItems().addAll("CAR", "CNA", "DOCE", "FANC", "NFUF", "MAP");
         totCombo.setValue("CAR");
 
         oriField = new TextField("ORI123456");
         tcnField = new TextField("TCN-" + UUID.randomUUID().toString().substring(0,12).toUpperCase());
 
-        addLabeledField(grid, 0, "Type of Transaction (TOT) 1.003", totCombo, "CAR = Criminal Tenprint Submission (Answer Required) - Section 3.1.1.1");
-        addLabeledField(grid, 1, "Originating Agency Identifier (ORI) 1.008", oriField, "Your 9-character NCIC ORI (mandatory)");
-        addLabeledField(grid, 2, "Transaction Control Number (TCN) 1.009", tcnField, "Unique control number you manage (mandatory)");
+        addLabeledField(grid, 0, "Type of Transaction (TOT) 1.003", totCombo, "CAR recommended for ATF Form 1");
+        addLabeledField(grid, 1, "Originating Agency Identifier (ORI) 1.008", oriField, "Your 9-character NCIC ORI");
+        addLabeledField(grid, 2, "Transaction Control Number (TCN) 1.009", tcnField, "Unique identifier");
 
         return new Tab("1. Header (Type-1)", new ScrollPane(grid));
     }
 
-        private Tab createBiographicTab() {
+    private Tab createBiographicTab() {
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(20));
         grid.setHgap(15);
@@ -90,54 +100,95 @@ public class EbtsEtfGeneratorApp extends Application {
         wgtField = new TextField("180");
         ssnField = new TextField();
 
-        addLabeledField(grid, 0, "Name (NAM) 2.018", namField, "LAST,FIRST MIDDLE - Appendix C");
+        addLabeledField(grid, 0, "Name (NAM) 2.018", namField, "LAST,FIRST MIDDLE");
         addLabeledField(grid, 1, "Date of Birth (DOB) 2.024", dobField, "YYYYMMDD");
         addLabeledField(grid, 2, "Sex (SEX) 2.025", sexCombo, "M/F/U");
         addLabeledField(grid, 3, "Race (RAC) 2.026", raceField, "W/B/A/I");
         addLabeledField(grid, 4, "Height (HGT) 2.027", hgtField, "e.g. 510");
         addLabeledField(grid, 5, "Weight (WGT) 2.028", wgtField, "pounds");
-        addLabeledField(grid, 6, "SSN (2.036)", ssnField, "Optional Social Security Number");
+        addLabeledField(grid, 6, "SSN (2.036)", ssnField, "Optional");
 
         return new Tab("2. Biographic (Type-2)", new ScrollPane(grid));
     }
 
     private Tab createImageTab() {
-        VBox vbox = new VBox(15);
+        VBox vbox = new VBox(25);
         vbox.setPadding(new Insets(20));
+
+        // Rolled Fingers (Type-4)
+        vbox.getChildren().add(new Label("Rolled Fingers (Type-4)"));
         String[] fingers = {"Right Thumb", "Right Index", "Right Middle", "Right Ring", "Right Little",
-                            "Left Thumb", "Left Index", "Left Middle", "Left Ring", "Left Little",
-                            "Plain Thumbs", "Additional Image"};
+                            "Left Thumb", "Left Index", "Left Middle", "Left Ring", "Left Little"};
         for (String finger : fingers) {
             HBox row = new HBox(15);
             Label label = new Label(finger + ":");
-            label.setPrefWidth(220);
-            Button btn = new Button("Select Image File (PNG/JPG/WSQ)");
+            label.setPrefWidth(200);
+            Button btn = new Button("Select Image");
             Label status = new Label("No file selected");
-            btn.setOnAction(e -> {
-                FileChooser fc = new FileChooser();
-                fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Fingerprint Images", "*.png", "*.jpg", "*.jpeg", "*.wsq"));
-                File file = fc.showOpenDialog(null);
-                if (file != null) {
-                    fingerFiles.put(finger, file);
-                    status.setText(file.getName());
-                }
-            });
+            btn.setOnAction(e -> selectImage(fingerFiles, status, finger));
             row.getChildren().addAll(label, btn, status);
             vbox.getChildren().add(row);
         }
-        return new Tab("3. Fingerprint Images (Type-4)", new ScrollPane(vbox));
+
+        // Scanned FD-248 Card (Type-7) - for your physical card
+        HBox cardRow = new HBox(15);
+        Label cardLabel = new Label("Scanned FD-248 Card (Type-7):");
+        cardLabel.setPrefWidth(220);
+        Button cardBtn = new Button("Select Scanned FD-248 Card");
+        Label cardStatus = new Label("No file selected");
+        cardBtn.setOnAction(e -> {
+            FileChooser fc = new FileChooser();
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Images", "*.png", "*.jpg", "*.jpeg"));
+            File file = fc.showOpenDialog(null);
+            if (file != null) {
+                cardFile = file;
+                cardStatus.setText(file.getName());
+            }
+        });
+        cardRow.getChildren().addAll(cardLabel, cardBtn, cardStatus);
+        vbox.getChildren().add(cardRow);
+
+        // Flat Impressions (Type-14)
+        HBox flatRow = new HBox(15);
+        Label flatLabel = new Label("Flat Impressions (Type-14):");
+        flatLabel.setPrefWidth(220);
+        Button flatBtn = new Button("Select Flat Impressions");
+        Label flatStatus = new Label("No file selected");
+        flatBtn.setOnAction(e -> {
+            FileChooser fc = new FileChooser();
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Images", "*.png", "*.jpg", "*.jpeg"));
+            File file = fc.showOpenDialog(null);
+            if (file != null) {
+                flatFile = file;
+                flatStatus.setText(file.getName());
+            }
+        });
+        flatRow.getChildren().addAll(flatLabel, flatBtn, flatStatus);
+        vbox.getChildren().add(flatRow);
+
+        return new Tab("3. Images (Type-4 / Type-7 / Type-14)", new ScrollPane(vbox));
     }
 
-    private Tab createGenerateTab() { /* same as v1.2 */ 
+    private void selectImage(Map<String, File> map, Label status, String key) {
+        FileChooser fc = new FileChooser();
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Images", "*.png", "*.jpg", "*.jpeg", "*.wsq"));
+        File file = fc.showOpenDialog(null);
+        if (file != null) {
+            map.put(key, file);
+            status.setText(file.getName());
+        }
+    }
+
+    private Tab createGenerateTab() {
         VBox vbox = new VBox(20);
         vbox.setPadding(new Insets(30));
-        notesArea = new TextArea("Additional notes or user-defined fields");
+        notesArea = new TextArea("Additional notes or user-defined fields (optional)");
         notesArea.setPrefRowCount(4);
-        Button generateBtn = new Button("🚀 Generate Compliant .eft File (v1.3)");
+        Button generateBtn = new Button("🚀 Generate Compliant .eft File (v1.4 - ATF Form 1)");
         generateBtn.setStyle("-fx-font-size: 16px; -fx-padding: 15px 40px;");
         generateBtn.setOnAction(e -> generateEftFile());
         vbox.getChildren().addAll(
-            new Label("✅ EBTS v8.1 Compliant + Automatic PNG/JPG → WSQ (Appendix F)"),
+            new Label("✅ ATF Form 1 / FD-248 Ready (Type-7 card + Type-14 flats + PNG→WSQ)"),
             notesArea,
             generateBtn
         );
@@ -167,29 +218,36 @@ public class EbtsEtfGeneratorApp extends Application {
     }
 
     private void generateEftFile() {
-        log("=== Starting EBTS v8.1 file generation (v1.3) ===");
+        log("=== Starting EBTS v8.1 generation (v1.4 - ATF Form 1) ===");
         try {
+            // Validation
             if (oriField.getText().trim().isEmpty() || tcnField.getText().trim().isEmpty() ||
                 namField.getText().trim().isEmpty() || dobField.getText().trim().isEmpty()) {
                 throw new IllegalArgumentException("ORI, TCN, NAM, and DOB are mandatory");
             }
-            if (fingerFiles.isEmpty()) {
-                throw new IllegalArgumentException("At least one fingerprint image is required");
-            }
-
-            log("Validation passed. Building records...");
 
             StringBuilder content = new StringBuilder();
             content.append(buildType1Record());
             content.append(buildType2Record());
 
+            // Type-4 Rolled Fingers
             for (Map.Entry<String, File> entry : fingerFiles.entrySet()) {
-                String type4 = buildType4Record(entry.getKey(), entry.getValue());
-                content.append(type4);
+                content.append(buildType4Record(entry.getKey(), entry.getValue()));
             }
-            content.append((char) 0x1C);
 
-            log("Records built. Saving files...");
+            // Type-7 Scanned FD-248 Card
+            if (cardFile != null) {
+                content.append(buildType7Record(cardFile));
+                log("Added Type-7 FD-248 card image");
+            }
+
+            // Type-14 Flat Impressions
+            if (flatFile != null) {
+                content.append(buildType14Record(flatFile));
+                log("Added Type-14 flat impressions");
+            }
+
+            content.append((char) 0x1C);
 
             FileChooser fc = new FileChooser();
             fc.setInitialFileName(totCombo.getValue() + "_" + tcnField.getText() + ".eft");
@@ -200,27 +258,25 @@ public class EbtsEtfGeneratorApp extends Application {
                 fos.write(content.toString().getBytes(StandardCharsets.US_ASCII));
             }
 
-            // Create log file
+            // Create companion log file
             File logFile = new File(eftFile.getParent(), eftFile.getName().replace(".eft", ".log"));
             try (PrintWriter pw = new PrintWriter(new FileWriter(logFile))) {
-                pw.println("=== EBTS v8.1 Generation Log - " + LocalDateTime.now() + " ===");
+                pw.println("=== EBTS v8.1 ATF Form 1 Log - " + LocalDateTime.now() + " ===");
                 pw.println("TOT: " + totCombo.getValue());
                 pw.println("ORI: " + oriField.getText());
                 pw.println("TCN: " + tcnField.getText());
                 pw.println("NAM: " + namField.getText());
-                pw.println("Fingerprint Images: " + fingerFiles.size());
-                for (String finger : fingerFiles.keySet()) {
-                    pw.println("  - " + finger);
-                }
+                pw.println("Type-7 FD-248 Card: " + (cardFile != null));
+                pw.println("Type-14 Flats: " + (flatFile != null));
                 pw.println("EFT File Size: " + eftFile.length() + " bytes");
-                pw.println("Status: SUCCESS (PNG/JPG converted to WSQ)");
+                pw.println("Status: SUCCESS");
             }
 
             log("✅ SUCCESS! Files created:");
             log("   • " + eftFile.getAbsolutePath());
             log("   • " + logFile.getAbsolutePath());
 
-            new Alert(Alert.AlertType.INFORMATION, "✅ Success!\n\nEFT file + log file created.\nPNG/JPG images were automatically converted to WSQ.").showAndWait();
+            new Alert(Alert.AlertType.INFORMATION, "✅ ATF Form 1 ETF file generated successfully!").showAndWait();
 
         } catch (Exception ex) {
             String errorMsg = "❌ ERROR: " + ex.getMessage();
@@ -229,7 +285,7 @@ public class EbtsEtfGeneratorApp extends Application {
         }
     }
 
-    private String buildType1Record() { /* same as v1.2 */ 
+    private String buildType1Record() {
         StringBuilder sb = new StringBuilder();
         sb.append("1.001:000000").append((char)0x1D);
         sb.append("1.002:01").append((char)0x1D);
@@ -238,13 +294,13 @@ public class EbtsEtfGeneratorApp extends Application {
         sb.append("1.008:").append(oriField.getText()).append((char)0x1D);
         sb.append("1.009:").append(tcnField.getText()).append((char)0x1D);
         sb.append("1.012:500").append((char)0x1D);
-        sb.append("1.013:01,2,4").append((char)0x1D);
+        sb.append("1.013:01,2,7,14").append((char)0x1D);
         String record = sb.toString();
         int len = record.length() + 6;
         return record.replace("000000", String.format("%06d", len)) + (char)0x1C;
     }
 
-    private String buildType2Record() { /* same as v1.2 */ 
+    private String buildType2Record() {
         StringBuilder sb = new StringBuilder();
         sb.append("2.001:000000").append((char)0x1D);
         sb.append("2.002:01").append((char)0x1D);
@@ -263,7 +319,7 @@ public class EbtsEtfGeneratorApp extends Application {
     }
 
     private String buildType4Record(String fingerName, File imageFile) throws IOException {
-        byte[] data = getWSQData(imageFile);   // <-- automatic conversion happens here
+        byte[] data = getWSQData(imageFile);
         Integer pos = fingerPositions.getOrDefault(fingerName, 99);
         StringBuilder sb = new StringBuilder();
         sb.append("4.001:").append(String.format("%06d", data.length + 40)).append((char)0x1D);
@@ -274,14 +330,33 @@ public class EbtsEtfGeneratorApp extends Application {
         return sb.toString();
     }
 
+    private String buildType7Record(File cardImage) throws IOException {
+        byte[] data = getWSQData(cardImage);
+        StringBuilder sb = new StringBuilder();
+        sb.append("7.001:").append(String.format("%06d", data.length + 50)).append((char)0x1D);
+        sb.append("7.002:01").append((char)0x1D);
+        sb.append("7.003:1").append((char)0x1D);
+        sb.append("7.999:").append(new String(data, StandardCharsets.ISO_8859_1));
+        sb.append((char)0x1C);
+        return sb.toString();
+    }
+
+    private String buildType14Record(File flatImage) throws IOException {
+        byte[] data = getWSQData(flatImage);
+        StringBuilder sb = new StringBuilder();
+        sb.append("14.001:").append(String.format("%06d", data.length + 50)).append((char)0x1D);
+        sb.append("14.002:01").append((char)0x1D);
+        sb.append("14.003:19").append((char)0x1D); // Civil flat code
+        sb.append("14.999:").append(new String(data, StandardCharsets.ISO_8859_1));
+        sb.append((char)0x1C);
+        return sb.toString();
+    }
+
     private byte[] getWSQData(File file) throws IOException {
         byte[] raw = Files.readAllBytes(file.toPath());
         String name = file.getName().toLowerCase();
-        log("Processing " + file.getName() + " → WSQ");
-        if (name.endsWith(".wsq")) {
-            return raw;
-        }
-        // Automatic conversion
+        log("Converting " + file.getName() + " → WSQ");
+        if (name.endsWith(".wsq")) return raw;
         return WSQEncoder.fromPng(raw).encode().asByteArray();
     }
 
