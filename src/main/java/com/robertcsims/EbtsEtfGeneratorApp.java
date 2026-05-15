@@ -54,28 +54,32 @@ public class EbtsEtfGeneratorApp extends Application {
         fingerPositions.put("Additional Image", 99);
     }
 
-    private Tab createHeaderTab() { /* same as v1.2 - omitted for brevity in this message but included in full copy */ 
-        // (The full header tab code is identical to v1.2 - you can keep it or use the previous version's header)
+        private Tab createHeaderTab() {
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(20));
         grid.setHgap(15);
         grid.setVgap(15);
+
         totCombo = new ComboBox<>();
         totCombo.getItems().addAll("CAR", "CNA", "CPDR", "DOCE", "FANC", "NFUF", "MAP");
         totCombo.setValue("CAR");
+
         oriField = new TextField("ORI123456");
         tcnField = new TextField("TCN-" + UUID.randomUUID().toString().substring(0,12).toUpperCase());
+
         addLabeledField(grid, 0, "Type of Transaction (TOT) 1.003", totCombo, "CAR = Criminal Tenprint Submission (Answer Required) - Section 3.1.1.1");
         addLabeledField(grid, 1, "Originating Agency Identifier (ORI) 1.008", oriField, "Your 9-character NCIC ORI (mandatory)");
         addLabeledField(grid, 2, "Transaction Control Number (TCN) 1.009", tcnField, "Unique control number you manage (mandatory)");
+
         return new Tab("1. Header (Type-1)", new ScrollPane(grid));
     }
 
-    private Tab createBiographicTab() { /* same as v1.2 */ 
+        private Tab createBiographicTab() {
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(20));
         grid.setHgap(15);
         grid.setVgap(15);
+
         namField = new TextField("DOE,JOHN A");
         dobField = new TextField("19850115");
         sexCombo = new ComboBox<>();
@@ -85,6 +89,7 @@ public class EbtsEtfGeneratorApp extends Application {
         hgtField = new TextField("510");
         wgtField = new TextField("180");
         ssnField = new TextField();
+
         addLabeledField(grid, 0, "Name (NAM) 2.018", namField, "LAST,FIRST MIDDLE - Appendix C");
         addLabeledField(grid, 1, "Date of Birth (DOB) 2.024", dobField, "YYYYMMDD");
         addLabeledField(grid, 2, "Sex (SEX) 2.025", sexCombo, "M/F/U");
@@ -92,6 +97,7 @@ public class EbtsEtfGeneratorApp extends Application {
         addLabeledField(grid, 4, "Height (HGT) 2.027", hgtField, "e.g. 510");
         addLabeledField(grid, 5, "Weight (WGT) 2.028", wgtField, "pounds");
         addLabeledField(grid, 6, "SSN (2.036)", ssnField, "Optional Social Security Number");
+
         return new Tab("2. Biographic (Type-2)", new ScrollPane(grid));
     }
 
