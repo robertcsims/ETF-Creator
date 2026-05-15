@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.robertcsims</groupId>
     <artifactId>ETF-Creator</artifactId>
-    <version>1.2-SNAPSHOT</version>
+    <version>1.3-SNAPSHOT</version>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -23,6 +23,12 @@
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
             <version>${javafx.version}</version>
+        </dependency>
+        <!-- JNBIS for automatic PNG/JPG → WSQ conversion (required for FBI/ATF) -->
+        <dependency>
+            <groupId>com.github.mhshams</groupId>
+            <artifactId>jnbis</artifactId>
+            <version>3.0.0</version>
         </dependency>
     </dependencies>
 
